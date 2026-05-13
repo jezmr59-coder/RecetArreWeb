@@ -1,5 +1,5 @@
 {
-  "buildCommand": "dotnet publish -c Release -o output",
+  "buildCommand": "curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --version 10.0.0 && ~/.dotnet/dotnet publish -c Release -o output",
   "outputDirectory": "output",
   "framework": null
 }
