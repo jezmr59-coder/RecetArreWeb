@@ -1,0 +1,458 @@
+﻿@page "/recetas"
+@inject IRecetaService recetaService
+@inject ICategoriaService categoriaService
+@inject NavigationManager navigation
+@using RecetArreWeb.DTOs
+@using RecetArreWeb.Services
+@using Microsoft.AspNetCore.Components.Authorization
+
+<PageTitle>Recetas</PageTitle>
+
+<div class="container-fluid py-4">
+    <!-- Encabezado -->
+    <div class="row mb-4">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 text-brand mb-1">Recetas</h1>
+                    <p class="text-muted mb-0">Explora y administra las recetas</p>
+                </div>
+                <AuthorizeView>
+                    <Authorized>
+                        <button class="btn btn-brand" @onclick="AbrirModalCrear">
+                            <span class="bi bi-plus-circle"></span> Nueva Receta
+                        </button>
+                    </Authorized>
+                </AuthorizeView>
+            </div>
+        </div>
+    </div>
+
+    <!-- Filtros -->
+    <div class="row mb-3">
+        <div class="col-12">
+            <div class="card border-0 shadow-sm">
+                <div class="card-body">
+                    <div class="row g-3">
+                        <div class="col-12 col-md-6 col-lg-4">
+                            <input type="text" class="form-control" placeholder="Buscar receta..."
+                                   @bind="busqueda" @bind:event="oninput" />
+                        </div>
+                        <div class="col-12 col-md-6 col-lg-3">
+                            <button class="btn btn-outline-secondary w-100" @onclick="() => busqueda = string.Empty">
+                                <span class="bi bi-x-circle"></span> Limpiar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Alertas -->
+    @if (!string.IsNullOrEmpty(mensajeError))
+    {
+        <div class="alert alert-danger alert-dismissible fade show mb-3">
+            <strong>Error:</strong> @mensajeError
+            <button type="button" class="btn-close" @onclick="() => mensajeError = string.Empty"></button>
+        </div>
+    }
+    @if (!string.IsNullOrEmpty(mensajeExito))
+    {
+        <div class="alert alert-success alert-dismissible fade show mb-3">
+            @mensajeExito
+            <button type="button" class="btn-close" @onclick="() => mensajeExito = string.Empty"></button>
+        </div>
+    }
+
+    <!-- Grid de recetas -->
+    <div class="row">
+        @if (recetas == null)
+        {
+            <div class="col-12 text-center py-5">
+                <div class="spinner-border text-brand" role="status">
+                    <span class="visually-hidden">Cargando...</span>
+                </div>
+                <p class="text-muted mt-3">Cargando recetas...</p>
+            </div>
+        }
+        else if (!recetas.Any())
+        {
+            <div class="col-12">
+                <div class="alert alert-info">
+                    <h5 class="alert-heading">No hay recetas</h5>
+                    <p class="mb-0">Comienza creando tu primera receta.</p>
+                </div>
+            </div>
+        }
+        else
+        {
+            @foreach (var receta in RecetasFiltradas)
+            {
+                <div class="col-12 col-sm-6 col-md-4 col-lg-3 mb-3">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body d-flex flex-column">
+                            <div class="d-flex justify-content-between align-items-start mb-2">
+                                <h5 class="card-title text-brand mb-0">@receta.Titulo</h5>
+                                <AuthorizeView>
+                                    <Authorized>
+                                        <div class="dropdown">
+                                            <button class="btn btn-sm btn-link text-muted" type="button"
+                                                    data-bs-toggle="dropdown">
+                                                <span class="bi bi-three-dots-vertical"></span>
+                                            </button>
+                                            <ul class="dropdown-menu">
+                                                <li>
+                                                    <button class="dropdown-item" @onclick="() => AbrirModalEditar(receta)">
+                                                        <span class="bi bi-pencil"></span> Editar
+                                                    </button>
+                                                </li>
+                                                <li><hr class="dropdown-divider"></li>
+                                                <li>
+                                                    <button class="dropdown-item text-danger" @onclick="() => ConfirmarEliminar(receta)">
+                                                        <span class="bi bi-trash"></span> Eliminar
+                                                    </button>
+                                                </li>
+                                            </ul>
+                                        </div>
+                                    </Authorized>
+                                </AuthorizeView>
+                            </div>
+
+                            <p class="card-text text-muted small flex-grow-1">
+                                @(string.IsNullOrEmpty(receta.Descripcion) ? "Sin descripción" : receta.Descripcion)
+                            </p>
+
+                            <div class="d-flex flex-wrap gap-1 mb-2">
+                                @foreach (var cat in receta.Categorias)
+                                {
+                                    <span class="badge bg-brand-soft text-brand">@cat</span>
+                                }
+                            </div>
+
+                            <div class="border-top pt-2 mt-auto">
+                                <small class="text-muted d-flex gap-3">
+                                    <span><span class="bi bi-clock"></span> @receta.TiempoPreparacionMinutos min prep</span>
+                                    <span><span class="bi bi-fire"></span> @receta.TiempoCoccionMinutos min cocción</span>
+                                </small>
+                                <small class="text-muted">
+                                    <span class="bi bi-people"></span> @receta.Porciones porciones
+                                </small>
+                                <div class="border-top pt-2 mt-2">
+                                    <button class="btn btn-sm btn-brand w-100"
+                                            @onclick="() => IrAReceta(receta.Id)">
+                                        <span class="bi bi-eye"></span> Ver receta
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- Modal crear/editar -->
+@if (mostrarModal)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">@(recetaEditando == null ? "Nueva Receta" : "Editar Receta")</h5>
+                    <button type="button" class="btn-close" @onclick="CerrarModal"></button>
+                </div>
+                <div class="modal-body">
+                    @if (!string.IsNullOrEmpty(mensajeModalError))
+                    {
+                        <div class="alert alert-danger">@mensajeModalError</div>
+                    }
+                    <div class="row g-3">
+                        <div class="col-12">
+                            <label class="form-label">Título <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" @bind="form.Titulo"
+                                   placeholder="Nombre de la receta" />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Descripción</label>
+                            <input type="text" class="form-control" @bind="form.Descripcion"
+                                   placeholder="Breve descripción..." />
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Instrucciones <span class="text-danger">*</span></label>
+                            <textarea class="form-control" rows="5" @bind="form.Instrucciones"
+                                      placeholder="Paso 1: ..."></textarea>
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Prep. (min)</label>
+                            <input type="number" class="form-control" @bind="form.TiempoPreparacionMinutos" min="0" max="1440" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Cocción (min)</label>
+                            <input type="number" class="form-control" @bind="form.TiempoCoccionMinutos" min="0" max="1440" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">Porciones</label>
+                            <input type="number" class="form-control" @bind="form.Porciones" min="1" max="100" />
+                        </div>
+                        <div class="col-6 col-md-3">
+                            <label class="form-label">¿Publicado?</label>
+                            <div class="form-check mt-2">
+                                <input class="form-check-input" type="checkbox" @bind="form.EstaPublicado" id="publicado" />
+                                <label class="form-check-label" for="publicado">Sí</label>
+                            </div>
+                        </div>
+                        <div class="col-12">
+                            <label class="form-label">Categorías</label>
+                            <div class="d-flex flex-wrap gap-2">
+                                @if (todasCategorias != null)
+                                {
+                                    @foreach (var cat in todasCategorias)
+                                    {
+                                        <div class="form-check">
+                                            <input class="form-check-input" type="checkbox" id="cat-@cat.Id"
+                                                   checked="@form.CategoriaIds.Contains(cat.Id)"
+                                                   @onchange="e => ToggleCategoria(cat.Id, (bool)e.Value!)" />
+                                            <label class="form-check-label" for="cat-@cat.Id">@cat.Nombre</label>
+                                        </div>
+                                    }
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="CerrarModal">Cancelar</button>
+                    <button type="button" class="btn btn-brand" @onclick="GuardarReceta" disabled="@guardando">
+                        @if (guardando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        @(recetaEditando == null ? "Crear" : "Guardar cambios")
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+<!-- Modal confirmar eliminación -->
+@if (mostrarModalEliminar)
+{
+    <div class="modal fade show d-block" tabindex="-1" style="background-color: rgba(0,0,0,0.5);">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title text-danger">Eliminar Receta</h5>
+                    <button type="button" class="btn-close" @onclick="() => mostrarModalEliminar = false"></button>
+                </div>
+                <div class="modal-body">
+                    <p>¿Estás seguro de que deseas eliminar <strong>@recetaAEliminar?.Titulo</strong>?</p>
+                    <p class="text-muted small">Esta acción no se puede deshacer.</p>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" @onclick="() => mostrarModalEliminar = false">Cancelar</button>
+                    <button type="button" class="btn btn-danger" @onclick="EliminarReceta" disabled="@eliminando">
+                        @if (eliminando)
+                        {
+                            <span class="spinner-border spinner-border-sm me-1"></span>
+                        }
+                        Eliminar
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<RecetaDto>? recetas;
+    private List<CategoriaDto>? todasCategorias;
+    private string busqueda = "";
+    private bool mostrarModal = false;
+    private bool mostrarModalEliminar = false;
+    private bool guardando = false;
+    private bool eliminando = false;
+    private RecetaDto? recetaEditando = null;
+    private RecetaDto? recetaAEliminar = null;
+    private string mensajeError = "";
+    private string mensajeExito = "";
+    private string mensajeModalError = "";
+
+    private RecetaCreacionDto form = new();
+
+    private IEnumerable<RecetaDto> RecetasFiltradas
+    {
+        get
+        {
+            if (recetas == null) return Enumerable.Empty<RecetaDto>();
+            if (string.IsNullOrWhiteSpace(busqueda)) return recetas;
+            return recetas.Where(r =>
+                r.Titulo.Contains(busqueda, StringComparison.OrdinalIgnoreCase) ||
+                (r.Descripcion?.Contains(busqueda, StringComparison.OrdinalIgnoreCase) ?? false));
+        }
+    }
+
+    protected override async Task OnInitializedAsync()
+    {
+        await Task.WhenAll(CargarRecetas(), CargarCategorias());
+    }
+
+    private async Task CargarRecetas()
+    {
+        recetas = null;
+        recetas = await recetaService.ObtenerTodasRecetas();
+    }
+
+    private async Task CargarCategorias()
+    {
+        todasCategorias = await categoriaService.ObtenerTodasCategorias();
+    }
+
+    private void IrAReceta(int id)
+    {
+        navigation.NavigateTo($"/recetas/{id}");
+    }
+
+    private void AbrirModalCrear()
+    {
+        recetaEditando = null;
+        form = new RecetaCreacionDto();
+        mensajeModalError = "";
+        mostrarModal = true;
+    }
+
+    private void AbrirModalEditar(RecetaDto receta)
+    {
+        recetaEditando = receta;
+        form = new RecetaCreacionDto
+        {
+            Titulo = receta.Titulo,
+            Descripcion = receta.Descripcion,
+            Instrucciones = receta.Instrucciones,
+            TiempoPreparacionMinutos = receta.TiempoPreparacionMinutos,
+            TiempoCoccionMinutos = receta.TiempoCoccionMinutos,
+            Porciones = receta.Porciones,
+            EstaPublicado = receta.EstaPublicado,
+            CategoriaIds = todasCategorias?
+                .Where(c => receta.Categorias.Contains(c.Nombre))
+                .Select(c => c.Id)
+                .ToList() ?? new()
+        };
+        mensajeModalError = "";
+        mostrarModal = true;
+    }
+
+    private void CerrarModal()
+    {
+        mostrarModal = false;
+        recetaEditando = null;
+        mensajeModalError = "";
+    }
+
+    private void ToggleCategoria(int id, bool seleccionado)
+    {
+        if (seleccionado && !form.CategoriaIds.Contains(id))
+            form.CategoriaIds.Add(id);
+        else if (!seleccionado)
+            form.CategoriaIds.Remove(id);
+    }
+
+    private async Task GuardarReceta()
+    {
+        if (string.IsNullOrWhiteSpace(form.Titulo))
+        {
+            mensajeModalError = "El título es obligatorio.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(form.Instrucciones))
+        {
+            mensajeModalError = "Las instrucciones son obligatorias.";
+            return;
+        }
+
+        guardando = true;
+        mensajeModalError = "";
+
+        try
+        {
+            if (recetaEditando == null)
+            {
+                var resultado = await recetaService.Crear(form);
+                if (resultado != null)
+                {
+                    mensajeExito = $"Receta '{resultado.Titulo}' creada exitosamente.";
+                    CerrarModal();
+                    await CargarRecetas();
+                }
+                else
+                {
+                    mensajeModalError = "No se pudo crear la receta. El título puede estar duplicado.";
+                }
+            }
+            else
+            {
+                var dto = new RecetaModificacionDto
+                {
+                    Titulo = form.Titulo,
+                    Descripcion = form.Descripcion,
+                    Instrucciones = form.Instrucciones,
+                    TiempoPreparacionMinutos = form.TiempoPreparacionMinutos,
+                    TiempoCoccionMinutos = form.TiempoCoccionMinutos,
+                    Porciones = form.Porciones,
+                    EstaPublicado = form.EstaPublicado,
+                    CategoriaIds = form.CategoriaIds,
+                    IngredienteIds = form.IngredienteIds
+                };
+                var ok = await recetaService.Actualizar(recetaEditando.Id, dto);
+                if (ok)
+                {
+                    mensajeExito = "Receta actualizada exitosamente.";
+                    CerrarModal();
+                    await CargarRecetas();
+                }
+                else
+                {
+                    mensajeModalError = "No se pudo actualizar la receta.";
+                }
+            }
+        }
+        finally
+        {
+            guardando = false;
+        }
+    }
+
+    private void ConfirmarEliminar(RecetaDto receta)
+    {
+        recetaAEliminar = receta;
+        mostrarModalEliminar = true;
+    }
+
+    private async Task EliminarReceta()
+    {
+        if (recetaAEliminar == null) return;
+        eliminando = true;
+        try
+        {
+            var ok = await recetaService.Eliminar(recetaAEliminar.Id);
+            if (ok)
+            {
+                mensajeExito = $"Receta '{recetaAEliminar.Titulo}' eliminada exitosamente.";
+                mostrarModalEliminar = false;
+                recetaAEliminar = null;
+                await CargarRecetas();
+            }
+            else
+            {
+                mensajeError = "No se pudo eliminar la receta.";
+                mostrarModalEliminar = false;
+            }
+        }
+        finally
+        {
+            eliminando = false;
+        }
+    }
+}
