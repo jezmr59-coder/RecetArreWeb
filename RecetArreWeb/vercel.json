@@ -1,5 +1,5 @@
 {
   "buildCommand": "curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 8.0 && ~/.dotnet/dotnet publish -c Release -o output",
-  "outputDirectory": "output",
+  "outputDirectory": "output/wwwroot",
   "framework": null
 }
